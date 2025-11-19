@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Live Vote Selector</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@900&display=swap');
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #000;
+            font-family: 'Montserrat', sans-serif;
+        }
+
+        /* O Canvas do Three.js fica fixo no fundo */
+        #canvas-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+
+        /* O Container de Scroll fica por cima */
+        #scroll-container {
+            position: relative;
+            z-index: 10;
+            display: flex;
+            overflow-x: auto;
+            scroll-snap-type: x mandatory;
+            width: 100%;
+            height: 100%;
+            scrollbar-width: none; /* Firefox */
+            -ms-overflow-style: none;  /* IE 10+ */
+        }
+        
+        #scroll-container::-webkit-scrollbar { 
+            display: none; /* Chrome/Safari */
+        }
+
+        /* Cada slide ocupa 100% da tela */
+        .slide {
+            flex: 0 0 100%;
+            width: 100%;
+            height: 100%;
+            scroll-snap-align: center;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            transition: opacity 0.3s;
+        }
+
+        .text-label {
+            font-size: 15vw; /* Tamanho gigante */
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: -0.05em;
+            text-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            user-select: none;
+            pointer-events: none;
+        }
+
+        /* Indicador de arrastar */
+        .drag-indicator {
+            position: absolute;
+            bottom: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: white;
+            opacity: 0.7;
+            font-size: 0.9rem;
+            letter-spacing: 0.2em;
+            z-index: 20;
+            pointer-events: none;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 0.4; }
+            50% { opacity: 1; }
+            100% { opacity: 0.4; }
+        }
+
+        .arrow-left, .arrow-right {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 3rem;
+            color: white;
+            opacity: 0.3;
+            z-index: 15;
+            pointer-events: none;
+        }
+        .arrow-left { left: 20px; }
+        .arrow-right { right: 20px; }
+
+    </style>
+</head>
+<body>
+
+    <!-- Fundo 3D -->
+    <div id="canvas-container"></div>
+
+    <!-- Interface de Scroll -->
+    <div id="scroll-container">
+        <!-- Opção SIM -->
+        <div class="slide" id="slide-yes">
+            <h1 class="text-label text-green-500">SIM</h1>
+        </div>
+        
+        <!-- Opção NÃO -->
+        <div class="slide" id="slide-no">
+            <h1 class="text-label text-red-600">NÃO</h1>
+        </div>
+    </div>
+
+    <!-- Elementos Visuais de UI -->
+    <div class="arrow-left">&lsaquo;</div>
+    <div class="arrow-right">&rsaquo;</div>
+    <div class="drag-indicator text-center">
+        <span class="block text-xs mb-1">ARRASTE PARA ESCOLHER</span>
+        <div class="flex justify-center gap-2">
+            <div class="w-2 h-2 rounded-full bg-white dot-indicator" id="dot-1"></div>
+            <div class="w-2 h-2 rounded-full bg-white opacity-30 dot-indicator" id="dot-2"></div>
+        </div>
+    </div>
+
+    <script>
+        // --- CONFIGURAÇÃO THREE.JS ---
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+        // Nevoeiro para dar profundidade
+        scene.fog = new THREE.FogExp2(0x000000, 0.05);
+
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.z = 5;
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        container.appendChild(renderer.domElement);
+
+        // Criação dos Cubos
+        const geometry = new THREE.BoxGeometry(0.5, 0.5, 0.5);
+        const material = new THREE.MeshStandardMaterial({ 
+            color: 0x22c55e, // Começa verde
+            roughness: 0.4,
+            metalness: 0.6 
+        });
+
+        const cubes = [];
+        const cubeCount = 150;
+
+        for (let i = 0; i < cubeCount; i++) {
+            const cube = new THREE.Mesh(geometry, material);
+            
+            // Posição aleatória
+            cube.position.x = (Math.random() - 0.5) * 20;
+            cube.position.y = (Math.random() - 0.5) * 20;
+            cube.position.z = (Math.random() - 0.5) * 10;
+            
+            // Rotação aleatória inicial
+            cube.rotation.x = Math.random() * Math.PI;
+            cube.rotation.y = Math.random() * Math.PI;
+
+            // Velocidade de rotação personalizada
+            cube.userData = {
+                rotSpeedX: (Math.random() - 0.5) * 0.02,
+                rotSpeedY: (Math.random() - 0.5) * 0.02,
+                originalPos: cube.position.clone()
+            };
+
+            scene.add(cube);
+            cubes.push(cube);
+        }
+
+        // Luzes
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+        scene.add(ambientLight);
+
+        const pointLight = new THREE.PointLight(0xffffff, 1);
+        pointLight.position.set(5, 5, 5);
+        scene.add(pointLight);
+
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
+        directionalLight.position.set(-5, 0, 2);
+        scene.add(directionalLight);
+
+
+        // --- LÓGICA DE INTERAÇÃO E ANIMAÇÃO ---
+        
+        const scrollContainer = document.getElementById('scroll-container');
+        const dot1 = document.getElementById('dot-1');
+        const dot2 = document.getElementById('dot-2');
+        
+        // Estado alvo
+        let targetColor = new THREE.Color(0x22c55e); // Verde (Tailwind green-500)
+        let currentColor = new THREE.Color(0x22c55e);
+        let agitationLevel = 0; // 0 = calmo, 1 = agitado
+
+        // Cores de referência
+        const greenColor = new THREE.Color(0x22c55e);
+        const redColor = new THREE.Color(0xdc2626); // Vermelho (Tailwind red-600)
+
+        function updateScrollState() {
+            const scrollWidth = scrollContainer.scrollWidth - scrollContainer.clientWidth;
+            const scrollLeft = scrollContainer.scrollLeft;
+            
+            // Calcula porcentagem do scroll (0 a 1)
+            // 0 = SIM, 1 = NÃO
+            let progress = scrollLeft / scrollWidth;
+            if (isNaN(progress)) progress = 0;
+
+            // Atualiza indicadores (bolinhas)
+            if (progress < 0.5) {
+                dot1.style.opacity = '1';
+                dot2.style.opacity = '0.3';
+                document.querySelector('.arrow-right').style.opacity = '0.5';
+                document.querySelector('.arrow-left').style.opacity = '0';
+            } else {
+                dot1.style.opacity = '0.3';
+                dot2.style.opacity = '1';
+                document.querySelector('.arrow-right').style.opacity = '0';
+                document.querySelector('.arrow-left').style.opacity = '0.5';
+            }
+
+            // Interpolação da cor baseada na posição do scroll
+            targetColor.lerpColors(greenColor, redColor, progress);
+            
+            // Define nível de agitação dos cubos (NÃO é mais caótico)
+            agitationLevel = progress;
+        }
+
+        scrollContainer.addEventListener('scroll', updateScrollState);
+        window.addEventListener('resize', onWindowResize, false);
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        // Loop de Animação
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // Suaviza a transição de cor
+            currentColor.lerp(targetColor, 0.1);
+            material.color.copy(currentColor);
+            
+            // Muda a cor do fundo levemente também para ambientação
+            const darkCurrent = currentColor.clone().multiplyScalar(0.1);
+            scene.background = darkCurrent;
+            scene.fog.color = darkCurrent;
+
+            const time = Date.now() * 0.001;
+
+            cubes.forEach((cube, i) => {
+                // Base speed
+                let speedMultiplier = 1 + (agitationLevel * 3); // Fica 4x mais rápido no "NÃO"
+
+                cube.rotation.x += cube.userData.rotSpeedX * speedMultiplier;
+                cube.rotation.y += cube.userData.rotSpeedY * speedMultiplier;
+
+                // Movimento oscilatório (flutuação)
+                // Se for "NÃO", oscila mais forte e rápido
+                const floatSpeed = 1 + (agitationLevel * 2);
+                const floatAmp = 0.5 + (agitationLevel * 0.5);
+                
+                cube.position.y = cube.userData.originalPos.y + Math.sin(time * floatSpeed + i) * floatAmp;
+                
+                // Efeito de "respiração" no tamanho quando "NÃO"
+                if(agitationLevel > 0.8) {
+                    const scale = 1 + Math.sin(time * 10 + i) * 0.2;
+                    cube.scale.set(scale, scale, scale);
+                } else {
+                     cube.scale.set(1, 1, 1);
+                }
+            });
+
+            // Rotação suave da câmera geral
+            camera.position.x = Math.sin(time * 0.1) * 2;
+            camera.position.y = Math.cos(time * 0.1) * 2;
+            camera.lookAt(0, 0, 0);
+
+            renderer.render(scene, camera);
+        }
+
+        // Iniciar
+        updateScrollState();
+        animate();
+
+    </script>
+</body>
+</html>
