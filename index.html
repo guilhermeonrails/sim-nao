@@ -61,7 +61,7 @@
 
         .text-label {
             font-size: 42vw; /* Tamanho gigante */
-            font-weight: 700;
+            font-weight: 900;
             text-transform: uppercase;
             letter-spacing: -0.05em;
             text-shadow: 0 10px 30px rgba(0,0,0,0.5);
@@ -126,6 +126,14 @@
     <!-- Elementos Visuais de UI -->
     <div class="arrow-left">&lsaquo;</div>
     <div class="arrow-right">&rsaquo;</div>
+
+    <!-- Botão de Tela Cheia -->
+    <button id="fullscreen-btn" class="absolute top-6 right-6 z-50 text-white opacity-50 hover:opacity-100 transition-opacity cursor-pointer p-2 rounded-full hover:bg-white/10">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+        </svg>
+    </button>
+
     <div class="drag-indicator text-center">
         <div class="flex justify-center gap-2">
             <div class="w-2 h-2 rounded-full bg-white dot-indicator" id="dot-1"></div>
@@ -297,6 +305,20 @@
         // Iniciar
         updateScrollState();
         animate();
+
+        // Lógica de Tela Cheia
+        const fsBtn = document.getElementById('fullscreen-btn');
+        fsBtn.addEventListener('click', () => {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(err => {
+                    console.log(`Erro ao ativar tela cheia: ${err.message}`);
+                });
+            } else {
+                if (document.exitFullscreen) {
+                    document.exitFullscreen();
+                }
+            }
+        });
 
     </script>
 </body>
